@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use warnings;
 use strict;
@@ -6,11 +6,11 @@ use strict;
 sub main();
 
 
-my $CLIBS = "/home/mayur/DV/systemc-2.3.1/lib-linux64";
-my $UVMCLIBS = "/home/mayur/DV/uvm-systemc-1.0/lib-linux64";
+my $CLIBS = "\$SYSTEMC_HOME/lib-linux64";
+my $UVMCLIBS = "\$UVM_SYSTEMC_HOME/lib-linux64";
 
-my $CINC = "/home/mayur/DV/systemc-2.3.1/include";
-my $UVMCINC = "/home/mayur/DV/uvm-systemc-1.0/include";
+my $CINC = "\$SYSTEMC_HOME/include";
+my $UVMCINC = "\$UVM_SYSTEMC_HOME/include";
 my $INC = "-I../test -I../top -I../env -I../master_agent -I../slave_agent";
 
 main();
@@ -19,7 +19,11 @@ main();
 
 sub main(){
 
-    system "g++ $INC -I$CINC -I$UVMCINC -L$CLIBS -lsystemc -L$UVMCLIBS -luvm-systemc ../top/top.cpp -o sim -Wl,-rpath,$CLIBS -Wl,-rpath,$UVMCLIBS";
+    # Run simplified syntax 
+    #system "g++ $INC -I$CINC -I$UVMCINC -L$CLIBS -L$UVMCLIBS ../top/top.cpp -o sim -lsystemc -luvm-systemc -Wl,-rpath,$CLIBS -Wl,-rpath,$UVMCLIBS";
 
-    system "./sim";
+
+    system "g++ -I. $INC -I$CINC -I$UVMCINC -L. -L$CLIBS -L$UVMCLIBS ../top/top.cpp -o sim -lsystemc -luvm-systemc -lm";
+
+    system "execstack -s ./sim; ./sim";
 }
