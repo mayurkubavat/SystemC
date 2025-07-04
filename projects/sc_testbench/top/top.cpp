@@ -4,8 +4,7 @@
 
 #include "test.h"
 
-int sc_main(int, char*[])
-{  
+int sc_main(int, char*[]) {
   test* test_h = new test("test_h");
 
   uvm::run_test();
