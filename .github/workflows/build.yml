@@ -1,0 +1,45 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SystemC
+        id: cache-systemc
+        uses: actions/cache@v4
+        with:
+          path: /opt/systemc
+          key: systemc-3.0.0-${{ runner.os }}
+
+      - name: Install SystemC
+        if: steps.cache-systemc.outputs.cache-hit != 'true'
+        run: |
+          wget -q https://github.com/accellera-official/systemc/archive/refs/tags/3.0.0.tar.gz
+          tar xzf 3.0.0.tar.gz
+          cd systemc-3.0.0
+          mkdir build && cd build
+          cmake .. -DCMAKE_INSTALL_PREFIX=/opt/systemc -DCMAKE_CXX_STANDARD=17
+          make -j$(nproc) && make install
+
+      - name: Configure
+        run: cmake -B build -DSYSTEMC_HOME=/opt/systemc
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Run hello_world
+        run: ./build/examples/01_hello_world/hello_world
+
+      - name: Run or_gate
+        run: ./build/examples/02_or_gate/or_gate
+
+      - name: Run and_gate
+        run: ./build/examples/03_and_gate/and_gate

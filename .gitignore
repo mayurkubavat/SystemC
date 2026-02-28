@@ -1,1 +1,30 @@
+# Build artifacts
+build/
+*.o
+*.d
+sim
+
+# SystemC local installs
 /systemc-2.3.1
+
+# Waveform dumps
+*.vcd
+*.wlf
+*.fsdb
+
+# Editor swap files
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Gemini
+.gemini/
+gha-creds-*.json
+
+# IDE
+.vscode/
+.idea/

@@ -1,0 +1,3 @@
+add_subdirectory(01_hello_world)
+add_subdirectory(02_or_gate)
+add_subdirectory(03_and_gate)
