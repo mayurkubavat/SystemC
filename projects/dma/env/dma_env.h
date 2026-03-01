@@ -17,6 +17,7 @@
 #include "apb_master_agent.h"
 #include "axi_lite_slave_agent.h"
 #include "dma_scoreboard.h"
+#include "dma_watchdog.h"
 #include "memory_model.h"
 
 // Testbench architecture (data flow):
@@ -50,11 +51,12 @@ public:
   apb_master_agent*      apb_agent;   // Drives APB register transactions
   axi_lite_slave_agent*  axi_agent;   // Responds to DMA's AXI requests
   dma_scoreboard*        scoreboard;  // Verifies DMA write correctness
+  dma_watchdog*          watchdog;    // Hang detection (heartbeat equivalent)
   memory_model*          mem;         // Shared backing store
 
   dma_env(uvm::uvm_component_name name)
     : uvm::uvm_env(name), apb_agent(nullptr), axi_agent(nullptr),
-      scoreboard(nullptr), mem(nullptr) {}
+      scoreboard(nullptr), watchdog(nullptr), mem(nullptr) {}
 
   // build_phase runs TOP-DOWN: test → env → agent → driver/monitor.
   // This means env's build_phase runs BEFORE its children's build_phases.
@@ -73,6 +75,7 @@ public:
     apb_agent  = apb_master_agent::type_id::create("apb_agent", this);
     axi_agent  = axi_lite_slave_agent::type_id::create("axi_agent", this);
     scoreboard = dma_scoreboard::type_id::create("scoreboard", this);
+    watchdog   = dma_watchdog::type_id::create("watchdog", this);
 
     // *** GOTCHA: Phase ordering matters for shared resources ***
     // We assign `mem` here in build_phase (top-down) rather than in
@@ -93,6 +96,7 @@ public:
     // Wire the analysis port: monitor publishes, scoreboard subscribes.
     // Every transaction the monitor observes will trigger scoreboard.write().
     axi_agent->monitor->ap.connect(scoreboard->analysis_export);
+    axi_agent->monitor->ap.connect(watchdog->analysis_export);
   }
 };
 

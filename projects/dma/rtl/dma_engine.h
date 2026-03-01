@@ -140,7 +140,7 @@ SC_MODULE(dma_engine) {
       PRDATA.write(0);
       PREADY.write(false);
       PSLVERR.write(false);
-      IRQ.write(false);
+      // IRQ is driven exclusively by dma_fsm (SystemC single-writer rule)
       return;
     }
 
@@ -167,6 +167,7 @@ SC_MODULE(dma_engine) {
             ctrl = PWDATA.read();
             if (ctrl & DMA_CTRL_START) {
               status = DMA_STATUS_BUSY;
+              // IRQ clearing happens in dma_fsm when it picks up the start
             }
             break;
           case DMA_STATUS:
@@ -220,6 +221,7 @@ SC_MODULE(dma_engine) {
       WSTRB.write(0);
       WVALID.write(false);
       BREADY.write(false);
+      IRQ.write(false);
       return;
     }
 
@@ -231,6 +233,7 @@ SC_MODULE(dma_engine) {
           cur_dst         = dst_addr;
           words_remaining = static_cast<uint16_t>(xfer_len & 0xFFFF);
           ctrl           &= ~DMA_CTRL_START;  // clear start bit
+          IRQ.write(false);  // Clear any pending interrupt from previous transfer
 
           if (words_remaining == 0) {
             // Zero-length transfer — done immediately

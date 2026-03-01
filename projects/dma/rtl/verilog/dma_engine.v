@@ -106,7 +106,7 @@ module dma_engine (
       status   <= 32'h0;
       PRDATA   <= 32'h0;
       PSLVERR  <= 1'b0;
-      IRQ      <= 1'b0;
+      // IRQ is driven exclusively by the FSM always block
     end else begin
       PSLVERR <= 1'b0;
 
@@ -167,6 +167,7 @@ module dma_engine (
       WSTRB   <= 32'h0;
       WVALID  <= 1'b0;
       BREADY  <= 1'b0;
+      IRQ     <= 1'b0;
     end else begin
       case (state)
 
@@ -176,6 +177,7 @@ module dma_engine (
             cur_dst         <= dst_addr;
             words_remaining <= xfer_len[15:0];
             ctrl            <= ctrl & ~CTRL_START;  // clear start bit
+            IRQ             <= 1'b0;  // Clear any pending interrupt
 
             if (xfer_len[15:0] == 16'h0) begin
               // Zero-length transfer — done immediately

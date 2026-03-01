@@ -54,14 +54,10 @@ public:
     if (irq_en) ctrl_val |= DMA_CTRL_IRQ_EN;
     reg_write(DMA_CTRL, ctrl_val);
 
-    // Wait for transfer to complete.
-    // Each word takes ~6 AXI handshake cycles (60ns), plus margin.
-    // Note: UVM-SystemC's get_next_item copies the item, so APB read data
-    // doesn't propagate back to the sequence. We rely on the scoreboard
-    // (which monitors AXI bus directly) for verification instead of polling.
-    sc_core::wait(xfer_len * 200 + 500, sc_core::SC_NS);
-
-    UVM_INFO("DMA_SEQ", "Transfer wait period complete", uvm::UVM_LOW);
+    // Transfer is now in progress. Completion detection (via IRQ or polling)
+    // is handled by the test, not the sequence. The sequence's job is just
+    // to program registers and trigger the transfer.
+    UVM_INFO("DMA_SEQ", "Transfer triggered, completion handled by test", uvm::UVM_LOW);
   }
 };
 

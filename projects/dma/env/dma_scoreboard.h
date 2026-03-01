@@ -102,7 +102,7 @@ public:
     std::ostringstream ss;
     ss << "DMA Scoreboard: " << pass_count << " passed, " << fail_count
        << " failed (expected " << exp_xfer_len << " writes)";
-    if (fail_count > 0) {
+    if (fail_count > 0 || pass_count != static_cast<int>(exp_xfer_len)) {
       UVM_ERROR(get_name(), ss.str());
     } else {
       UVM_INFO(get_name(), ss.str(), uvm::UVM_LOW);

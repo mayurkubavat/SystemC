@@ -65,11 +65,33 @@ public:
     seq->src_addr = src_addr;
     seq->dst_addr = dst_addr;
     seq->xfer_len = xfer_len;
-    seq->start(env->apb_agent->sequencer);  // Blocking: runs entire sequence
+    // Arm the watchdog before triggering the DMA. If no AXI activity occurs
+    // within the timeout window, the watchdog will fire UVM_FATAL.
+    env->watchdog->timeout_ns = 200;  // 200ns = ~20 clock cycles of inactivity
+    env->watchdog->enabled = true;
 
-    // Allow extra time for the monitor to observe the last AXI transactions.
-    // Without this, simulation might end before the monitor's polling loop
-    // catches the final BVALID/BREADY handshake.
+    seq->irq_en   = true;  // Enable interrupt on completion
+    seq->start(env->apb_agent->sequencer);  // Blocking: programs regs and triggers
+
+    // ---- Wait for DMA completion via IRQ ----
+    // Instead of a blind timed wait, we use the IRQ signal as the completion
+    // indicator. This ends simulation as soon as the DMA finishes, rather than
+    // wasting cycles on a worst-case timeout.
+    sc_core::sc_signal<bool>* irq_sig = nullptr;
+    if (uvm::uvm_config_db<sc_core::sc_signal<bool>*>::get(this, "", "irq", irq_sig)) {
+      // Wait for IRQ to assert (posedge_event avoids spinning)
+      if (!irq_sig->read())
+        sc_core::wait(irq_sig->posedge_event());
+      UVM_INFO(get_name(), "IRQ asserted — DMA transfer complete", uvm::UVM_LOW);
+    } else {
+      UVM_WARNING(get_name(), "IRQ signal not in config_db, using timed fallback");
+      sc_core::wait(xfer_len * 200 + 500, sc_core::SC_NS);
+    }
+
+    // Disarm watchdog — transfer is complete, no more AXI activity expected
+    env->watchdog->enabled = false;
+
+    // Small drain time so the monitor observes the final AXI transaction
     sc_core::wait(50, sc_core::SC_NS);
 
     // Signal that this test is complete — simulation can end.

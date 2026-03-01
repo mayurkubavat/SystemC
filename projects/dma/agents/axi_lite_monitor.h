@@ -39,33 +39,23 @@ public:
   //
   // SV equivalent: uvm_analysis_port #(axi_lite_transaction) ap;
   uvm::uvm_analysis_port<axi_lite_transaction> ap;
-  axi_lite_if* vif;
+  axi_lite_if*       vif;
+  sc_core::sc_clock* clk;
 
   axi_lite_monitor(uvm::uvm_component_name name)
-    : uvm::uvm_monitor(name), ap("ap"), vif(nullptr) {}
+    : uvm::uvm_monitor(name), ap("ap"), vif(nullptr), clk(nullptr) {}
 
   void run_phase(uvm::uvm_phase& phase) {
-    while (true) {
-      sc_core::wait(10, sc_core::SC_NS);
+    // Retrieve clock for posedge-event waits
+    if (!uvm::uvm_config_db<sc_core::sc_clock*>::get(this, "", "clk", clk))
+      UVM_FATAL(get_name(), "No clock found in config_db");
 
-      // *** CRITICAL SystemC gotcha: delta cycle alignment ***
-      //
-      // SystemC processes at the same simulation time execute in delta cycles:
-      //   Delta 0: SC_THREADs resume from wait(time), sc_clock signal updates
-      //   Delta 1: SC_METHODs triggered by clock events (posedge) fire
-      //
-      // The slave driver (SC_THREAD) writes BVALID=true at delta 0.
-      // The DMA FSM (SC_METHOD) reads BVALID and writes BREADY=false at delta 1.
-      //
-      // If we sample at delta 0, we see stale signal values (before the
-      // current cycle's updates). By advancing one extra delta with
-      // wait(SC_ZERO_TIME), we sample at delta 1+ where the signals
-      // reflect the completed handshake from the current clock edge.
-      //
-      // This is one of the most common pitfalls when mixing SC_METHOD and
-      // SC_THREAD in the same testbench. In production, you'd typically use
-      // a clocking block (SV) or event-based sampling to avoid this issue.
-      sc_core::wait(sc_core::SC_ZERO_TIME);
+    while (true) {
+      // Using posedge_event() naturally wakes us AFTER the clock update
+      // (delta 1+), so we see signal values that reflect the current clock
+      // edge. This eliminates the need for the SC_ZERO_TIME hack that was
+      // previously required with time-based waits.
+      sc_core::wait(clk->posedge_event());
 
       // Detect completed write: both BVALID and BREADY high = write response
       if (vif->BVALID.read() && vif->BREADY.read()) {

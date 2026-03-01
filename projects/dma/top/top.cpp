@@ -161,6 +161,12 @@ int sc_main(int argc, char* argv[]) {
   uvm::uvm_config_db<apb_if*>::set(nullptr, "*", "vif", &apb);
   uvm::uvm_config_db<axi_lite_if*>::set(nullptr, "*", "axi_vif", &axi);
   uvm::uvm_config_db<sc_core::sc_signal<bool>*>::set(nullptr, "*", "resetn", &resetn);
+  uvm::uvm_config_db<sc_core::sc_signal<bool>*>::set(nullptr, "*", "irq", &irq);
+
+  // Pass clock to AXI slave driver and monitor so they can use posedge-event
+  // waits instead of fragile time-based waits. This ensures proper delta-cycle
+  // ordering and makes AXI handshakes visible in VCD waveforms.
+  uvm::uvm_config_db<sc_core::sc_clock*>::set(nullptr, "*", "clk", &clk);
 
   // Launch UVM test — this starts the UVM phase machine:
   //   build_phase → connect_phase → run_phase → ... → report_phase

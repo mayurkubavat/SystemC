@@ -40,17 +40,22 @@ public:
   // Components use UVM_COMPONENT_UTILS; data objects use UVM_OBJECT_UTILS.
   UVM_COMPONENT_UTILS(axi_lite_slave_driver);
 
-  axi_lite_if*   vif;  // Pointer to AXI signal-level interface (virtual interface)
-  memory_model*  mem;  // Pointer to backing memory (shared with scoreboard)
+  axi_lite_if*       vif;  // Pointer to AXI signal-level interface (virtual interface)
+  memory_model*      mem;  // Pointer to backing memory (shared with scoreboard)
+  sc_core::sc_clock* clk;  // Clock reference for posedge-event waits
 
   // UVM-SystemC constructors take uvm_component_name (not string).
   // This is different from SV where you pass `string name, uvm_component parent`.
   // In UVM-SystemC, the parent is implicit from factory creation context.
   axi_lite_slave_driver(uvm::uvm_component_name name)
-    : uvm::uvm_component(name), vif(nullptr), mem(nullptr) {}
+    : uvm::uvm_component(name), vif(nullptr), mem(nullptr), clk(nullptr) {}
 
   void build_phase(uvm::uvm_phase& phase) {
     uvm::uvm_component::build_phase(phase);
+
+    // Retrieve clock for posedge-event waits (avoids fragile time-based waits)
+    if (!uvm::uvm_config_db<sc_core::sc_clock*>::get(this, "", "clk", clk))
+      UVM_FATAL(get_name(), "No clock found in config_db");
   }
 
   // run_phase — the main simulation-time process.
@@ -69,11 +74,13 @@ public:
     vif->BVALID.write(false);
     vif->BRESP.write(AXI_RESP_OKAY);
 
-    // Main loop — polls every clock cycle (10ns = one period of 100MHz clock).
-    // A more robust approach would wait on signal events, but polling at clock
-    // frequency is simpler and sufficient for this learning example.
+    // Main loop — waits for each posedge of the clock.
+    // Using posedge_event() instead of wait(10, SC_NS) ensures the driver
+    // wakes up AFTER the clock edge propagates (delta 1+), not at delta 0.
+    // This gives proper one-cycle response latency and makes AXI handshakes
+    // visible in VCD waveforms.
     while (true) {
-      sc_core::wait(10, sc_core::SC_NS);
+      sc_core::wait(clk->posedge_event());
 
       // ---- Read channel handling ----
       // Respond when master asserts ARVALID and we're not already serving a read
@@ -106,7 +113,7 @@ private:
 
     // Accept the address (ARREADY high for 1 cycle)
     vif->ARREADY.write(true);
-    sc_core::wait(10, sc_core::SC_NS);
+    sc_core::wait(clk->posedge_event());
     vif->ARREADY.write(false);
 
     // Read from backing memory and present data
@@ -115,12 +122,13 @@ private:
     vif->RRESP.write(AXI_RESP_OKAY);
     vif->RVALID.write(true);
 
-    // Wait for master's RREADY (may already be asserted)
+    // Wait for master's RREADY
     while (!vif->RREADY.read())
-      sc_core::wait(10, sc_core::SC_NS);
+      sc_core::wait(clk->posedge_event());
 
-    // Hold RVALID for 1 more cycle so the monitor can observe it
-    sc_core::wait(10, sc_core::SC_NS);
+    // Deassert immediately — the monitor sees the handshake in the same
+    // posedge because sc_signal::write() takes effect next delta, so all
+    // processes at this posedge still read the old (high) RVALID value.
     vif->RVALID.write(false);
   }
 
@@ -139,7 +147,7 @@ private:
     // Accept address + data (both READY signals high for 1 cycle)
     vif->AWREADY.write(true);
     vif->WREADY.write(true);
-    sc_core::wait(10, sc_core::SC_NS);
+    sc_core::wait(clk->posedge_event());
     vif->AWREADY.write(false);
     vif->WREADY.write(false);
 
@@ -150,12 +158,11 @@ private:
     vif->BRESP.write(AXI_RESP_OKAY);
     vif->BVALID.write(true);
 
-    // Wait for master's BREADY (may already be asserted)
+    // Wait for master's BREADY
     while (!vif->BREADY.read())
-      sc_core::wait(10, sc_core::SC_NS);
+      sc_core::wait(clk->posedge_event());
 
-    // Hold BVALID for 1 more cycle so the monitor can observe it
-    sc_core::wait(10, sc_core::SC_NS);
+    // Deassert immediately — same delta-cycle reasoning as RVALID above.
     vif->BVALID.write(false);
   }
 };
